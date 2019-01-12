@@ -8,8 +8,10 @@
       "scrypted-webpack": "scrypted-webpack"
    },
    "devDependencies": {
-      "node-hue-api": "^2.4.4",
-      "scrypted-deploy": "^1.0.7"
+      "scrypted-deploy": "^1.0.9",
+      "webpack-merge": "^4.2.1"
    },
-   "dependencies": {}
+   "dependencies": {
+      "node-hue-api": "^2.4.4"
+   }
 }
