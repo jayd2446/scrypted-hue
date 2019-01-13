@@ -28,6 +28,7 @@ DeviceProvider.prototype.updateLights = function () {
             interfaces: ['OnOff', 'Brightness'],
             type: 'Light',
         };
+        log.i(`Found device: ${JSON.stringify(device)}`);
         if (light.type.toLowerCase().indexOf('color') != -1) {
             device.interfaces.push('ColorSetting');
         }
@@ -91,8 +92,8 @@ VirtualDevice.prototype.setHsv = function(h, s, v) {
     this.api.setLightState(this.id, lightState.create().hsb(h, s * 100, v * 100));
 }
 
-var bridgeId = scriptConfiguration.getString('bridgeId');
-var bridgeAddress = scriptConfiguration.getString('bridgeAddress');;
+var bridgeId = scriptSettings.getString('bridgeId');
+var bridgeAddress = scriptSettings.getString('bridgeAddress');;
 if (!bridgeId) {
     log.i('No "bridgeId" was specified in Script Settings. Checking for default if one exists.');
 }
@@ -113,6 +114,8 @@ var displayBridges = function (bridges) {
         }
 
         bridgeId = bridges[0].id;
+        log.i(`Found bridge ${bridgeId}. Setting as default.`);
+        scriptSettings.putString('bridgeId', bridgeId);
     }
 
     var foundAddress;
@@ -134,7 +137,7 @@ var displayBridges = function (bridges) {
     else {
         bridgeAddress = foundAddress;
     }
-    scriptConfiguration.putString('bridgeAddress', bridgeAddress);
+    scriptSettings.putString('bridgeAddress', bridgeAddress);
 
     log.i(`Hue Bridges Found: ${bridgeId}`);
     log.i('Querying devices...');
@@ -154,7 +157,7 @@ var displayBridges = function (bridges) {
         deviceProvider.updateLights();
     }
 
-    var username = scriptConfiguration.getString(`user-${bridgeId}`);
+    var username = scriptSettings.getString(`user-${bridgeId}`);
     if (username) {
         log.i(`Using existing login for bridge ${bridgeId}`);
         listDevices(bridgeAddress, username);
@@ -167,7 +170,7 @@ var displayBridges = function (bridges) {
         .then((result) => {
             log.i(`Created user ${result}`);
             username = result;
-            scriptConfiguration.putString(`user-${bridgeId}`, result);
+            scriptSettings.putString(`user-${bridgeId}`, result);
             listDevices(bridgeAddress, username);
         })
         .fail((e) => {
