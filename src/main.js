@@ -178,7 +178,7 @@ var displayBridges = function (bridges) {
 
 // --------------------------
 // Using a promise
-hue.nupnpSearch().then(displayBridges).done();
+hue.nupnpSearch().then(displayBridges);
 
 
 exports.result = deviceProvider;

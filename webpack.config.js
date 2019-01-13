@@ -6,6 +6,7 @@ const webpackConfig = {
     resolve: {
         alias: {
             dgram: path.resolve(__dirname, 'src/dgram'),
+            q: path.resolve(__dirname, 'src/q'),
         }
     },
     externals: {
