@@ -8,7 +8,7 @@
       "scrypted-webpack": "scrypted-webpack"
    },
    "devDependencies": {
-      "scrypted-deploy": "^1.0.9",
+      "scrypted-deploy": "^1.1.0",
       "webpack-merge": "^4.2.1"
    },
    "dependencies": {

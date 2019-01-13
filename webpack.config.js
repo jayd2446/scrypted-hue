@@ -8,6 +8,10 @@ const webpackConfig = {
             dgram: path.resolve(__dirname, 'src/dgram'),
         }
     },
+    externals: {
+        // ignore xml2js since nupnpsearch is used instead.
+        "xml2js": "xml2js"
+    },
 }
 
 module.exports = merge(defaultWebpackConfig, webpackConfig);
