@@ -8,7 +8,7 @@
       "scrypted-webpack": "scrypted-webpack"
    },
    "devDependencies": {
-      "scrypted-deploy": "^1.0.6"
+      "scrypted-deploy": "^1.1.0"
    },
    "dependencies": {
       "axios": "^0.18.0"
