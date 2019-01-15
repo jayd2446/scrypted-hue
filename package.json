@@ -1,6 +1,6 @@
 {
    "name": "@scrypted/hue",
-   "version": "1.0.1",
+   "version": "1.0.2",
    "description": "A Philips Hue plugin for Scrypted",
    "author": "Scrypted",
    "license": "Apache",
@@ -18,7 +18,7 @@
       "plugin"
    ],
    "scrypted": {
-      "type": "Library"
+      "type": "DeviceProvider"
    },
    "devDependencies": {
       "scrypted-deploy": "^1.1.0",
