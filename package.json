@@ -7,6 +7,10 @@
       "scrypted-deploy": "scrypted-deploy",
       "scrypted-webpack": "scrypted-webpack"
    },
+   "keywords": [
+      "scrypted",
+      "plugin"
+   ],
    "devDependencies": {
       "scrypted-deploy": "^1.1.0",
       "webpack-merge": "^4.2.1"
