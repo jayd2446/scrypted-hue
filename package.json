@@ -11,6 +11,9 @@
       "scrypted",
       "plugin"
    ],
+   "scrypted": {
+      "type": "library"
+   },
    "devDependencies": {
       "scrypted-deploy": "^1.1.0"
    },
