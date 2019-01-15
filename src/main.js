@@ -95,7 +95,16 @@ VirtualDevice.prototype.setHsv = function(h, s, v) {
 var bridgeId = scriptSettings.getString('bridgeId');
 var bridgeAddress = scriptSettings.getString('bridgeAddress');;
 if (!bridgeId) {
-    log.i('No "bridgeId" was specified in Script Settings. Checking for default if one exists.');
+    log.i('No "bridgeId" was specified in Plugin Settings. Checking for default if one exists.');
+}
+else {
+    var username = scriptSettings.getString(`user-${bridgeId}`);
+    if (username) {
+        log.i(`Using existing login for bridge ${bridgeId}`);
+    }
+    else {
+        log.i(`No login found for ${bridgeId}. You will need to press the pairing button on your Hue bridge, and the save plugin to reload it.`);
+    }
 }
 
 var displayBridges = function (bridges) {
@@ -109,7 +118,7 @@ var displayBridges = function (bridges) {
             for (var found of bridges) {
                 log.e(found.id);
             }
-            log.e('Please specify which bridge to manage using the Script Setting "bridgeId"');
+            log.e('Please specify which bridge to manage using the Plugin Setting "bridgeId"');
             return;
         }
 
@@ -157,14 +166,12 @@ var displayBridges = function (bridges) {
         deviceProvider.updateLights();
     }
 
-    var username = scriptSettings.getString(`user-${bridgeId}`);
     if (username) {
         log.i(`Using existing login for bridge ${bridgeId}`);
         listDevices(bridgeAddress, username);
         return;
     }
 
-    log.i(`No login found for ${bridgeId}. Creating new user. You may need to press the pairing button on your Hue bridge, and then save this script to reload it.`);
     const api = new HueApi();
     api.registerUser(bridgeAddress, 'ScryptedServer')
         .then((result) => {
