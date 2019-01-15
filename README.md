@@ -5,7 +5,7 @@
  * npm run scrypted-deploy <ipaddress>
  * npm run scrypted-debug <ipaddress>
 
-# scrypted distribution via npm
+## scrypted distribution via npm
  1. Ensure package.json is set up properly for publishing on npm.
  2. NODE_ENV=production npm run scrypted-webpack
  3. git add dist/main.js
