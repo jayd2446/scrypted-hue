@@ -12,6 +12,7 @@
       "plugin"
    ],
    "scrypted": {
+      "name": "Scrypted Visual Studio Code Sample Library",
       "type": "Library"
    },
    "devDependencies": {
