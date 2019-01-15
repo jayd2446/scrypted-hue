@@ -1,4 +1,9 @@
 {
+   "name": "@scrypted/hue",
+   "version": "1.0.0",
+   "description": "A Philips Hue plugin for Scrypted",
+   "author": "Scrypted",
+   "license": "Apache",
    "scripts": {
       "prescrypted-vscode-launch": "scrypted-webpack",
       "scrypted-vscode-launch": "scrypted-deploy-debug",
@@ -8,6 +13,7 @@
       "scrypted-webpack": "scrypted-webpack"
    },
    "keywords": [
+      "hue",
       "scrypted",
       "plugin"
    ],
