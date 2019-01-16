@@ -9,6 +9,9 @@ const webpackConfig = {
             q: path.resolve(__dirname, 'src/q'),
         }
     },
+    node: {
+        Buffer: false,
+    },
     externals: {
         // ignore xml2js since nupnpsearch is used instead.
         "xml2js": "xml2js"

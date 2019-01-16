@@ -191,4 +191,4 @@ var displayBridges = function (bridges) {
 hue.nupnpSearch().then(displayBridges);
 
 
-exports.result = deviceProvider;
+export default deviceProvider;
