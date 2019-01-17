@@ -10,8 +10,10 @@ function DeviceProvider() {
 
 DeviceProvider.prototype.getDevice = function (id) {
     if (!this.api)
-        return null;;
-    return new VirtualDevice(id, this.api);
+        return null;
+    if (!this.devices[id])
+        return null;
+    return new VirtualDevice(id, this.api, this.devices[id]);
 }
 
 DeviceProvider.prototype.updateLights = function () {
@@ -41,9 +43,10 @@ DeviceProvider.prototype.updateLights = function () {
 var deviceProvider = new DeviceProvider();
 
 
-function VirtualDevice(id, api) {
+function VirtualDevice(id, api, device) {
     this.id = id;
     this.api = api;
+    this.device = device;
 }
 
 // implementation of OnOff
@@ -81,7 +84,20 @@ VirtualDevice.prototype.supportsSpectrumHsv = function() {
 }
 
 VirtualDevice.prototype.supportsTemperature = function() {
-    return false;
+    return true;
+}
+
+VirtualDevice.prototype.getTemperatureMinK = function() {
+  return Math.round(1 / (this.device.capabilities.control.ct.min) * 1000000);
+}
+
+VirtualDevice.prototype.getTemperatureMaxK = function() {
+  return Math.round(1 / (this.device.capabilities.control.ct.max) * 1000000);
+}
+
+VirtualDevice.prototype.setTemperature = function(kelvin) {
+    var mired = Math.round(1 / (kelvin / 1000000));
+    this.api.setLightState(this.id, lightState.create().ct(mired));
 }
 
 VirtualDevice.prototype.setRgb = function(r, g, b) {
@@ -166,8 +182,6 @@ var displayBridges = function (bridges) {
 
         for (var light of result.lights) {
             deviceProvider.devices[light.id] = light;
-            // var lightResult = await api.setLightState(parseInt(light.id), lightState.create().on().rgb(255, 0, 0));
-            // log.i(`light set: ${lightResult}`);
         }
         deviceProvider.updateLights();
     }
