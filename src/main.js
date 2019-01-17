@@ -95,7 +95,8 @@ VirtualDevice.prototype.setHsv = function(h, s, v) {
 var bridgeId = scriptSettings.getString('bridgeId');
 var bridgeAddress = scriptSettings.getString('bridgeAddress');;
 if (!bridgeId) {
-    log.i('No "bridgeId" was specified in Plugin Settings. Checking for default if one exists.');
+    log.i('No "bridgeId" was specified in Plugin Settings. Press the pair button on the Hue bridge.');
+    log.i('Searching for Hue Bridge...');
 }
 else {
     var username = scriptSettings.getString(`user-${bridgeId}`);
@@ -137,7 +138,7 @@ var displayBridges = function (bridges) {
 
     if (!foundAddress) {
         if (!bridgeAddress) {
-            log.e('Unable to locate bridge address.');
+            log.e(`Unable to locate bridge address for bridge: ${bridgeId}.`);
             return;
         }
 
@@ -155,7 +156,12 @@ var displayBridges = function (bridges) {
     async function listDevices(host, username) {
         var api = new HueApi(host, username);
         deviceProvider.api = api;
-        var result = await api.lights();
+        try {
+            var result = await api.lights();
+        }
+        catch (e) {
+            log.e(`Unable to list devices on bridge ${bridgeId}: ${e}`);
+        }
         log.i(`lights: ${result}`);
 
         for (var light of result.lights) {
@@ -175,13 +181,14 @@ var displayBridges = function (bridges) {
     const api = new HueApi();
     api.registerUser(bridgeAddress, 'ScryptedServer')
         .then((result) => {
-            log.i(`Created user ${result}`);
+            log.i(`Created user on ${bridgeId}: ${result}`);
             username = result;
             scriptSettings.putString(`user-${bridgeId}`, result);
-            listDevices(bridgeAddress, username);
+            return listDevices(bridgeAddress, username);
         })
-        .fail((e) => {
-            log.e(`error creating user: ${e}`);
+        .catch((e) => {
+            log.e(`Unable to create user on bridge ${bridgeId}: ${e}`);
+            log.e('You may need to press the pair button on the bridge.');
         })
         .done();
 };

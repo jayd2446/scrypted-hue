@@ -1,1 +1,1 @@
-log.i('Using dgram empty shim');
+log.i('Using empty dgram shim. NupnpSearch will be used.');
