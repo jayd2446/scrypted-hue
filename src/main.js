@@ -88,11 +88,11 @@ VirtualDevice.prototype.supportsTemperature = function() {
 }
 
 VirtualDevice.prototype.getTemperatureMinK = function() {
-  return Math.round(1 / (this.device.capabilities.control.ct.min) * 1000000);
+  return Math.round(1 / (this.device.capabilities.control.ct.max) * 1000000);
 }
 
 VirtualDevice.prototype.getTemperatureMaxK = function() {
-  return Math.round(1 / (this.device.capabilities.control.ct.max) * 1000000);
+  return Math.round(1 / (this.device.capabilities.control.ct.min) * 1000000);
 }
 
 VirtualDevice.prototype.setTemperature = function(kelvin) {
