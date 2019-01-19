@@ -19,7 +19,7 @@
       "plugin"
    ],
    "scrypted": {
-      "name": "Philips Hue Hub",
+      "name": "Hue Bridge",
       "type": "DeviceProvider"
    },
    "devDependencies": {
