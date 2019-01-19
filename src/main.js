@@ -32,7 +32,9 @@ DeviceProvider.prototype.updateLights = function () {
         };
         log.i(`Found device: ${JSON.stringify(device)}`);
         if (light.type.toLowerCase().indexOf('color') != -1) {
-            device.interfaces.push('ColorSetting');
+            device.interfaces.push('ColorSettingRgb');
+            device.interfaces.push('ColorSettingHsv');
+            device.interfaces.push('ColorSettingTemperature');
         }
         devices.push(device);
     }
@@ -106,6 +108,18 @@ VirtualDevice.prototype.setRgb = function(r, g, b) {
 
 VirtualDevice.prototype.setHsv = function(h, s, v) {
     this.api.setLightState(this.id, lightState.create().hsb(h, s * 100, v * 100));
+}
+
+VirtualDevice.prototype.getRgb = function() {
+    return [0, 0, 0];
+}
+
+VirtualDevice.prototype.getHsv = function() {
+    return [0, 0 ,0];
+}
+
+VirtualDevice.prototype.getTemperature = function() {
+    return 0;
 }
 
 var bridgeId = scriptSettings.getString('bridgeId');
