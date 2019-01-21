@@ -184,21 +184,25 @@ var displayBridges = function (bridges) {
 
 
     async function listDevices(host, username) {
+        log.clearAlerts();
+
         var api = new HueApi(host, username);
         deviceProvider.api = api;
         try {
             var result = await api.lights();
+            log.i(`lights: ${result}`);
+
+            for (var light of result.lights) {
+                deviceProvider.devices[light.id] = light;
+            }
+            deviceProvider.updateLights();
         }
         catch (e) {
-            log.e(`Unable to list devices on bridge ${bridgeId}: ${e}`);
+            log.a(`Unable to list devices on bridge ${bridgeId}: ${e}`);
         }
-        log.i(`lights: ${result}`);
-
-        for (var light of result.lights) {
-            deviceProvider.devices[light.id] = light;
-        }
-        deviceProvider.updateLights();
     }
+
+    log.clearAlerts();
 
     if (username) {
         log.i(`Using existing login for bridge ${bridgeId}`);
@@ -215,8 +219,8 @@ var displayBridges = function (bridges) {
             return listDevices(bridgeAddress, username);
         })
         .catch((e) => {
-            log.e(`Unable to create user on bridge ${bridgeId}: ${e}`);
-            log.e('You may need to press the pair button on the bridge.');
+            log.a(`Unable to create user on bridge ${bridgeId}: ${e}`);
+            log.a('You may need to press the pair button on the bridge.');
         })
         .done();
 };
