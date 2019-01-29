@@ -5,224 +5,283 @@ Error.captureStackTrace = function () {
 }
 
 function DeviceProvider() {
-    this.devices = {};
+  this.devices = {};
 };
 
 DeviceProvider.prototype.getDevice = function (id) {
-    if (!this.api)
-        return null;
-    if (!this.devices[id])
-        return null;
-    return new VirtualDevice(id, this.api, this.devices[id]);
+  return this.devices[id];
 }
 
-DeviceProvider.prototype.updateLights = function () {
-    var devices = [];
-    var payload = {
-        devices: devices,
+DeviceProvider.prototype.updateLights = function (result) {
+  var devices = [];
+  var payload = {
+    devices: devices,
+  };
+
+  // 182.5487
+
+  for (var light of result.lights) {
+    var interfaces = ['OnOff', 'Brightness'];
+    if (light.type.toLowerCase().indexOf('color') != -1) {
+      interfaces.push('ColorSettingRgb');
+      interfaces.push('ColorSettingHsv');
+      interfaces.push('ColorSettingTemperature');
+    }
+    var events = interfaces.slice();
+    interfaces.push('Refresh');
+
+    var device = {
+      id: light.id,
+      name: light.name,
+      interfaces: interfaces,
+      events: events,
+      type: 'Light',
     };
 
-    for (var light in this.devices) {
-        light = this.devices[light];
-        var device = {
-            id: light.id,
-            name: light.name,
-            interfaces: ['OnOff', 'Brightness'],
-            type: 'Light',
-        };
-        log.i(`Found device: ${JSON.stringify(device)}`);
-        if (light.type.toLowerCase().indexOf('color') != -1) {
-            device.interfaces.push('ColorSettingRgb');
-            device.interfaces.push('ColorSettingHsv');
-            device.interfaces.push('ColorSettingTemperature');
-        }
-        devices.push(device);
-    }
+    log.i(`Found device: ${JSON.stringify(device)}`);
+    devices.push(device);
 
-    deviceManager.onDevicesChanged(payload);
+    this.devices[light.id] = new VirtualDevice(light.id, this.api, light, device);
+  }
+
+  deviceManager.onDevicesChanged(payload);
 }
 
 var deviceProvider = new DeviceProvider();
 
-
-function VirtualDevice(id, api, device) {
-    this.id = id;
-    this.api = api;
-    this.device = device;
+// h, s, v are all expected to be between 0 and 1.
+// the h value expected by scrypted (and google and homekit) is between 0 and 360.
+function HSVtoRGB(h, s, v) {
+  var r, g, b, i, f, p, q, t;
+  if (arguments.length === 1) {
+    s = h.s, v = h.v, h = h.h;
+  }
+  i = Math.floor(h * 6);
+  f = h * 6 - i;
+  p = v * (1 - s);
+  q = v * (1 - f * s);
+  t = v * (1 - (1 - f) * s);
+  switch (i % 6) {
+    case 0: r = v, g = t, b = p; break;
+    case 1: r = q, g = v, b = p; break;
+    case 2: r = p, g = v, b = t; break;
+    case 3: r = p, g = q, b = v; break;
+    case 4: r = t, g = p, b = v; break;
+    case 5: r = v, g = p, b = q; break;
+  }
+  return {
+    r: Math.round(r * 255),
+    g: Math.round(g * 255),
+    b: Math.round(b * 255)
+  };
 }
 
-// implementation of OnOff
+const States = {
+  OnOff: function (s) {
+    return !!(s && s.on);
+  },
+  Brightness: function (s) {
+    return (s && s.bri && (s.bri / 254)) || 0;
+  },
+  ColorSettingTemperature: function (s) {
+    return (s && s.ct && (1000000 / s.ct)) || 0;
+  },
+  ColorSettingHsv: function (st) {
+    var h = (st && st.hue && st.hue / 182.5487) || 0;
+    var s = (st && st.sat && (st.sat / 254));
+    var v = (st && st.bri && (st.bri / 254));
+    return { h, s, v };
+  },
+  ColorSettingRgb: function (s) {
+    var { h, s, v } = States.ColorSettingHsv(s);
+    var { r, g, b } = HSVtoRGB(h / 360, s, v);
+    return { r, g, b };
+  }
+}
 
-VirtualDevice.prototype.isOn = function () {
-    return true;
-};
+function VirtualDevice(id, api, light, device) {
+  this.id = id;
+  this.api = api;
+  this.light = light;
+  this.device = device;
+  this.state = this.light.state;
+
+  this.refresher = (err) => {
+    this.refresh();
+  }
+}
+
+VirtualDevice.prototype.refresh = function (cb) {
+  this.api.lightStatus(this.id, function(err, result) {
+    if (result && result.state) {
+      var state = result.state;
+      this.state = state;
+
+      for (var stateGetter of this.device.events) {
+        var newValue = States[stateGetter](state);
+        // don't bother detecting if the state has not changed. denoising will be done
+        // at the platform level. this is also necessary for external calls to
+        // listen for set events, even if nothing has changed.
+        deviceManager.onDeviceEvent(this.light.id, stateGetter, newValue)
+      }
+    }
+    if (cb) {
+      cb(err);
+    }
+  }.bind(this));
+}
 
 VirtualDevice.prototype.turnOff = function () {
-    this.api.setLightState(this.id, lightState.create().turnOff());
+  this.api.setLightState(this.id, lightState.create().turnOff(), this.refresher);
 };
 
 VirtualDevice.prototype.turnOn = function () {
-    this.api.setLightState(this.id, lightState.create().turnOn());
+  this.api.setLightState(this.id, lightState.create().turnOn(), this.refresher);
 };
 
-// implementation of Brightness
-
-VirtualDevice.prototype.setLevel = function(level) {
-    this.api.setLightState(this.id, lightState.create().brightness(level));
+VirtualDevice.prototype.setLevel = function (level) {
+  this.api.setLightState(this.id, lightState.create().brightness(level), this.refresher);
 }
 
-VirtualDevice.prototype.getLevel = function() {
-    return 100;
+VirtualDevice.prototype.setTemperature = function (kelvin) {
+  var mired = Math.round(1000000 / kelvin);
+  this.api.setLightState(this.id, lightState.create().ct(mired), this.refresher);
 }
 
-// implementation of ColorSetting
-
-VirtualDevice.prototype.supportsSpectrumRgb = function() {
-    return true;
+VirtualDevice.prototype.setRgb = function (r, g, b) {
+  this.api.setLightState(this.id, lightState.create().rgb(r, g, b), this.refresher);
 }
 
-VirtualDevice.prototype.supportsSpectrumHsv = function() {
-    return true;
+VirtualDevice.prototype.setHsv = function (h, s, v) {
+  this.api.setLightState(this.id, lightState.create().hsb(h, s * 100, v * 100), this.refresher);
 }
 
-VirtualDevice.prototype.supportsTemperature = function() {
-    return true;
+VirtualDevice.prototype.isOn = function () {
+  return States.OnOff(this.state);
+};
+
+VirtualDevice.prototype.getLevel = function () {
+  return 100;
 }
 
-VirtualDevice.prototype.getTemperatureMinK = function() {
-  return Math.round(1 / (this.device.capabilities.control.ct.max) * 1000000);
+VirtualDevice.prototype.getTemperatureMinK = function () {
+  return Math.round(1 / (this.light.capabilities.control.ct.max) * 1000000);
 }
 
-VirtualDevice.prototype.getTemperatureMaxK = function() {
-  return Math.round(1 / (this.device.capabilities.control.ct.min) * 1000000);
+VirtualDevice.prototype.getTemperatureMaxK = function () {
+  return Math.round(1 / (this.light.capabilities.control.ct.min) * 1000000);
 }
 
-VirtualDevice.prototype.setTemperature = function(kelvin) {
-    var mired = Math.round(1 / (kelvin / 1000000));
-    this.api.setLightState(this.id, lightState.create().ct(mired));
+VirtualDevice.prototype.getRgb = function () {
+  return States.ColorSettingRgb(this.state);
 }
 
-VirtualDevice.prototype.setRgb = function(r, g, b) {
-    this.api.setLightState(this.id, lightState.create().rgb(r, g, b));
+VirtualDevice.prototype.getHsv = function () {
+  return States.ColorSettingHsv(this.state);
 }
 
-VirtualDevice.prototype.setHsv = function(h, s, v) {
-    this.api.setLightState(this.id, lightState.create().hsb(h, s * 100, v * 100));
-}
-
-VirtualDevice.prototype.getRgb = function() {
-    return [0, 0, 0];
-}
-
-VirtualDevice.prototype.getHsv = function() {
-    return [0, 0 ,0];
-}
-
-VirtualDevice.prototype.getTemperature = function() {
-    return 0;
+VirtualDevice.prototype.getTemperature = function () {
+  return States.ColorSettingTemperature(this.state);
 }
 
 var bridgeId = scriptSettings.getString('bridgeId');
 var bridgeAddress = scriptSettings.getString('bridgeAddress');;
 if (!bridgeId) {
-    log.i('No "bridgeId" was specified in Plugin Settings. Press the pair button on the Hue bridge.');
-    log.i('Searching for Hue Bridge...');
+  log.i('No "bridgeId" was specified in Plugin Settings. Press the pair button on the Hue bridge.');
+  log.i('Searching for Hue Bridge...');
 }
 else {
-    var username = scriptSettings.getString(`user-${bridgeId}`);
-    if (username) {
-        log.i(`Using existing login for bridge ${bridgeId}`);
-    }
-    else {
-        log.i(`No login found for ${bridgeId}. You will need to press the pairing button on your Hue bridge, and the save plugin to reload it.`);
-    }
+  var username = scriptSettings.getString(`user-${bridgeId}`);
+  if (username) {
+    log.i(`Using existing login for bridge ${bridgeId}`);
+  }
+  else {
+    log.i(`No login found for ${bridgeId}. You will need to press the pairing button on your Hue bridge, and the save plugin to reload it.`);
+  }
 }
 
 var displayBridges = function (bridges) {
-    if (!bridgeId) {
-        if (bridges.length == 0) {
-            log.e('No Hue bridges found');
-            return;
-        }
-        else if (bridges.length != 1) {
-            log.e('Multiple hue bridges found: ');
-            for (var found of bridges) {
-                log.e(found.id);
-            }
-            log.e('Please specify which bridge to manage using the Plugin Setting "bridgeId"');
-            return;
-        }
-
-        bridgeId = bridges[0].id;
-        log.i(`Found bridge ${bridgeId}. Setting as default.`);
-        scriptSettings.putString('bridgeId', bridgeId);
+  if (!bridgeId) {
+    if (bridges.length == 0) {
+      log.e('No Hue bridges found');
+      return;
+    }
+    else if (bridges.length != 1) {
+      log.e('Multiple hue bridges found: ');
+      for (var found of bridges) {
+        log.e(found.id);
+      }
+      log.e('Please specify which bridge to manage using the Plugin Setting "bridgeId"');
+      return;
     }
 
-    var foundAddress;
-    for (var found of bridges) {
-        if (found.id == bridgeId) {
-            foundAddress = found.ipaddress;
-            break;
-        }
+    bridgeId = bridges[0].id;
+    log.i(`Found bridge ${bridgeId}. Setting as default.`);
+    scriptSettings.putString('bridgeId', bridgeId);
+  }
+
+  var foundAddress;
+  for (var found of bridges) {
+    if (found.id == bridgeId) {
+      foundAddress = found.ipaddress;
+      break;
+    }
+  }
+
+  if (!foundAddress) {
+    if (!bridgeAddress) {
+      log.e(`Unable to locate bridge address for bridge: ${bridgeId}.`);
+      return;
     }
 
-    if (!foundAddress) {
-        if (!bridgeAddress) {
-            log.e(`Unable to locate bridge address for bridge: ${bridgeId}.`);
-            return;
-        }
+    log.w('Unable to locate most recent bridge address with nupnp search. using last known address.')
+  }
+  else {
+    bridgeAddress = foundAddress;
+  }
+  scriptSettings.putString('bridgeAddress', bridgeAddress);
 
-        log.w('Unable to locate most recent bridge address with nupnp search. using last known address.')
-    }
-    else {
-        bridgeAddress = foundAddress;
-    }
-    scriptSettings.putString('bridgeAddress', bridgeAddress);
-
-    log.i(`Hue Bridges Found: ${bridgeId}`);
-    log.i('Querying devices...');
+  log.i(`Hue Bridges Found: ${bridgeId}`);
+  log.i('Querying devices...');
 
 
-    async function listDevices(host, username) {
-        log.clearAlerts();
-
-        var api = new HueApi(host, username);
-        deviceProvider.api = api;
-        try {
-            var result = await api.lights();
-            log.i(`lights: ${result}`);
-
-            for (var light of result.lights) {
-                deviceProvider.devices[light.id] = light;
-            }
-            deviceProvider.updateLights();
-        }
-        catch (e) {
-            log.a(`Unable to list devices on bridge ${bridgeId}: ${e}`);
-        }
-    }
-
+  async function listDevices(host, username) {
     log.clearAlerts();
 
-    if (username) {
-        log.i(`Using existing login for bridge ${bridgeId}`);
-        listDevices(bridgeAddress, username);
-        return;
-    }
+    var api = new HueApi(host, username);
+    deviceProvider.api = api;
+    try {
+      var result = await api.lights();
+      log.i(`lights: ${result}`);
 
-    const api = new HueApi();
-    api.registerUser(bridgeAddress, 'ScryptedServer')
-        .then((result) => {
-            log.i(`Created user on ${bridgeId}: ${result}`);
-            username = result;
-            scriptSettings.putString(`user-${bridgeId}`, result);
-            return listDevices(bridgeAddress, username);
-        })
-        .catch((e) => {
-            log.a(`Unable to create user on bridge ${bridgeId}: ${e}`);
-            log.a('You may need to press the pair button on the bridge.');
-        })
-        .done();
+      deviceProvider.updateLights(result);
+    }
+    catch (e) {
+      log.a(`Unable to list devices on bridge ${bridgeId}: ${e}`);
+    }
+  }
+
+  log.clearAlerts();
+
+  if (username) {
+    log.i(`Using existing login for bridge ${bridgeId}`);
+    listDevices(bridgeAddress, username);
+    return;
+  }
+
+  const api = new HueApi();
+  api.registerUser(bridgeAddress, 'ScryptedServer')
+    .then((result) => {
+      log.i(`Created user on ${bridgeId}: ${result}`);
+      username = result;
+      scriptSettings.putString(`user-${bridgeId}`, result);
+      return listDevices(bridgeAddress, username);
+    })
+    .catch((e) => {
+      log.a(`Unable to create user on bridge ${bridgeId}: ${e}`);
+      log.a('You may need to press the pair button on the bridge.');
+    })
+    .done();
 };
 
 // --------------------------
