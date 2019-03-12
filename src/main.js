@@ -169,7 +169,7 @@ HueBulb.prototype.isOn = function () {
 };
 
 HueBulb.prototype.getLevel = function () {
-  return 100;
+  return States.Brightness(this.state);;
 }
 
 HueBulb.prototype.getTemperatureMinK = function () {
