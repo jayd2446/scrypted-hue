@@ -4,15 +4,15 @@ const { HueApi, lightState } = hue;
 Error.captureStackTrace = function () {
 }
 
-function DeviceProvider() {
+function HueHub() {
   this.devices = {};
 };
 
-DeviceProvider.prototype.getDevice = function (id) {
+HueHub.prototype.getDevice = function (id) {
   return this.devices[id];
 }
 
-DeviceProvider.prototype.updateLights = function (result) {
+HueHub.prototype.updateLights = function (result) {
   var devices = [];
   var payload = {
     devices: devices,
@@ -41,13 +41,13 @@ DeviceProvider.prototype.updateLights = function (result) {
     log.i(`Found device: ${JSON.stringify(device)}`);
     devices.push(device);
 
-    this.devices[light.id] = new VirtualDevice(light.id, this.api, light, device);
+    this.devices[light.id] = new HueBulb(light.id, this.api, light, device);
   }
 
   deviceManager.onDevicesChanged(payload);
 }
 
-var deviceProvider = new DeviceProvider();
+var HueHub = new HueHub();
 
 // h, s, v are all expected to be between 0 and 1.
 // the h value expected by scrypted (and google and homekit) is between 0 and 360.
@@ -81,7 +81,7 @@ const States = {
     return !!(s && s.on);
   },
   Brightness: function (s) {
-    return (s && s.bri && (s.bri / 254)) || 0;
+    return (s && s.bri && (s.bri * 100 / 254)) || 0;
   },
   ColorSettingTemperature: function (s) {
     return (s && s.ct && (1000000 / s.ct)) || 0;
@@ -99,7 +99,7 @@ const States = {
   }
 }
 
-function VirtualDevice(id, api, light, device) {
+function HueBulb(id, api, light, device) {
   this.id = id;
   this.api = api;
   this.light = light;
@@ -107,11 +107,11 @@ function VirtualDevice(id, api, light, device) {
   this.state = this.light.state;
 
   this.refresher = (err) => {
-    this.refresh();
+    this._refresh();
   }
 }
 
-VirtualDevice.prototype.refresh = function (cb) {
+HueBulb.prototype._refresh = function (cb) {
   this.api.lightStatus(this.id, function(err, result) {
     if (result && result.state) {
       var state = result.state;
@@ -131,56 +131,64 @@ VirtualDevice.prototype.refresh = function (cb) {
   }.bind(this));
 }
 
-VirtualDevice.prototype.turnOff = function () {
+HueBulb.prototype.refresh = function() {
+  this._refresh();
+}
+
+HueBulb.prototype.getRefreshFrequency = function() {
+  return 5;
+}
+
+HueBulb.prototype.turnOff = function () {
   this.api.setLightState(this.id, lightState.create().turnOff(), this.refresher);
 };
 
-VirtualDevice.prototype.turnOn = function () {
+HueBulb.prototype.turnOn = function () {
   this.api.setLightState(this.id, lightState.create().turnOn(), this.refresher);
 };
 
-VirtualDevice.prototype.setLevel = function (level) {
+HueBulb.prototype.setLevel = function (level) {
   this.api.setLightState(this.id, lightState.create().brightness(level), this.refresher);
 }
 
-VirtualDevice.prototype.setTemperature = function (kelvin) {
+HueBulb.prototype.setTemperature = function (kelvin) {
   var mired = Math.round(1000000 / kelvin);
   this.api.setLightState(this.id, lightState.create().ct(mired), this.refresher);
 }
 
-VirtualDevice.prototype.setRgb = function (r, g, b) {
+HueBulb.prototype.setRgb = function (r, g, b) {
   this.api.setLightState(this.id, lightState.create().rgb(r, g, b), this.refresher);
 }
 
-VirtualDevice.prototype.setHsv = function (h, s, v) {
+HueBulb.prototype.setHsv = function (h, s, v) {
   this.api.setLightState(this.id, lightState.create().hsb(h, s * 100, v * 100), this.refresher);
 }
 
-VirtualDevice.prototype.isOn = function () {
+HueBulb.prototype.isOn = function () {
   return States.OnOff(this.state);
 };
 
-VirtualDevice.prototype.getLevel = function () {
+HueBulb.prototype.getLevel = function () {
   return 100;
 }
 
-VirtualDevice.prototype.getTemperatureMinK = function () {
+HueBulb.prototype.getTemperatureMinK = function () {
   return Math.round(1 / (this.light.capabilities.control.ct.max) * 1000000);
 }
 
-VirtualDevice.prototype.getTemperatureMaxK = function () {
+HueBulb.prototype.getTemperatureMaxK = function () {
   return Math.round(1 / (this.light.capabilities.control.ct.min) * 1000000);
 }
 
-VirtualDevice.prototype.getRgb = function () {
+HueBulb.prototype.getRgb = function () {
   return States.ColorSettingRgb(this.state);
 }
 
-VirtualDevice.prototype.getHsv = function () {
+HueBulb.prototype.getHsv = function () {
   return States.ColorSettingHsv(this.state);
 }
 
-VirtualDevice.prototype.getTemperature = function () {
+HueBulb.prototype.getTemperature = function () {
   return States.ColorSettingTemperature(this.state);
 }
 
@@ -249,12 +257,12 @@ var displayBridges = function (bridges) {
     log.clearAlerts();
 
     var api = new HueApi(host, username);
-    deviceProvider.api = api;
+    HueHub.api = api;
     try {
       var result = await api.lights();
       log.i(`lights: ${result}`);
 
-      deviceProvider.updateLights(result);
+      HueHub.updateLights(result);
     }
     catch (e) {
       log.a(`Unable to list devices on bridge ${bridgeId}: ${e}`);
@@ -289,4 +297,4 @@ var displayBridges = function (bridges) {
 hue.nupnpSearch().then(displayBridges);
 
 
-export default deviceProvider;
+export default HueHub;
