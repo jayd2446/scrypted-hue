@@ -48,7 +48,7 @@ HueHub.prototype.updateLights = function (result) {
   deviceManager.onDevicesChanged(payload);
 }
 
-var HueHub = new HueHub();
+var hueHub = new HueHub();
 
 const StateSetters = {
   OnOff: function (s, state) {
@@ -202,12 +202,12 @@ var displayBridges = function (bridges) {
     log.clearAlerts();
 
     var api = new HueApi(host, username);
-    HueHub.api = api;
+    hueHub.api = api;
     try {
       var result = await api.lights();
       log.i(`lights: ${result}`);
 
-      HueHub.updateLights(result);
+      hueHub.updateLights(result);
     }
     catch (e) {
       log.a(`Unable to list devices on bridge ${bridgeId}: ${e}`);
@@ -241,4 +241,4 @@ var displayBridges = function (bridges) {
 hue.nupnpSearch().then(displayBridges);
 
 
-export default HueHub;
+export default hueHub;
