@@ -1,5 +1,7 @@
 import hue from "node-hue-api";
 const { HueApi, lightState } = hue;
+import sdk from '@scrypted/sdk';
+const { deviceManager, log } = sdk;
 
 Error.captureStackTrace = function () {
 }
@@ -23,7 +25,6 @@ HueHub.prototype.updateLights = function (result) {
   for (var light of result.lights) {
     var interfaces = ['OnOff', 'Brightness'];
     if (light.type.toLowerCase().indexOf('color') != -1) {
-      interfaces.push('ColorSettingRgb');
       interfaces.push('ColorSettingHsv');
       interfaces.push('ColorSettingTemperature');
     }
@@ -31,7 +32,7 @@ HueHub.prototype.updateLights = function (result) {
     interfaces.push('Refresh');
 
     var device = {
-      id: light.id,
+      nativeId: light.id,
       name: light.name,
       interfaces: interfaces,
       events: events,
@@ -41,7 +42,7 @@ HueHub.prototype.updateLights = function (result) {
     log.i(`Found device: ${JSON.stringify(device)}`);
     devices.push(device);
 
-    this.devices[light.id] = new HueBulb(light.id, this.api, light, device);
+    this.devices[light.id] = new HueBulb(this.api, light, device);
   }
 
   deviceManager.onDevicesChanged(payload);
@@ -49,81 +50,49 @@ HueHub.prototype.updateLights = function (result) {
 
 var HueHub = new HueHub();
 
-// h, s, v are all expected to be between 0 and 1.
-// the h value expected by scrypted (and google and homekit) is between 0 and 360.
-function HSVtoRGB(h, s, v) {
-  var r, g, b, i, f, p, q, t;
-  if (arguments.length === 1) {
-    s = h.s, v = h.v, h = h.h;
-  }
-  i = Math.floor(h * 6);
-  f = h * 6 - i;
-  p = v * (1 - s);
-  q = v * (1 - f * s);
-  t = v * (1 - (1 - f) * s);
-  switch (i % 6) {
-    case 0: r = v, g = t, b = p; break;
-    case 1: r = q, g = v, b = p; break;
-    case 2: r = p, g = v, b = t; break;
-    case 3: r = p, g = q, b = v; break;
-    case 4: r = t, g = p, b = v; break;
-    case 5: r = v, g = p, b = q; break;
-  }
-  return {
-    r: Math.round(r * 255),
-    g: Math.round(g * 255),
-    b: Math.round(b * 255)
-  };
-}
-
-const States = {
-  OnOff: function (s) {
-    return !!(s && s.on);
+const StateSetters = {
+  OnOff: function (s, state) {
+    state.on = !!(s && s.on);
   },
-  Brightness: function (s) {
-    return (s && s.bri && (s.bri * 100 / 254)) || 0;
+  Brightness: function (s, state) {
+    state.brightness = (s && s.bri && (s.bri * 100 / 254)) || 0;
   },
-  ColorSettingTemperature: function (s) {
-    return (s && s.ct && (1000000 / s.ct)) || 0;
+  ColorSettingTemperature: function (s, state) {
+    state.colorTemperature = (s && s.ct && (1000000 / s.ct)) || 0;
   },
-  ColorSettingHsv: function (st) {
+  ColorSettingHsv: function (st, state) {
     var h = (st && st.hue && st.hue / 182.5487) || 0;
     var s = (st && st.sat && (st.sat / 254));
     var v = (st && st.bri && (st.bri / 254));
-    return { h, s, v };
-  },
-  ColorSettingRgb: function (s) {
-    var { h, s, v } = States.ColorSettingHsv(s);
-    var { r, g, b } = HSVtoRGB(h / 360, s, v);
-    return { r, g, b };
+    state.hsv = { h, s, v };
   }
 }
 
-function HueBulb(id, api, light, device) {
-  this.id = id;
+function HueBulb(api, light, device) {
+  this.id = light.id;
   this.api = api;
   this.light = light;
   this.device = device;
-  this.state = this.light.state;
+  this.state = deviceManager.getDeviceState(this.id);
 
   this.refresher = (err) => {
     this._refresh();
+  }
+
+  // wait for this device to be synced, then report the current state.
+  setImmediate(() => this.updateState(light.state));
+}
+
+HueBulb.prototype.updateState = function(state) {
+  for (var event of this.device.events) {
+    StateSetters[event](state, this.state);
   }
 }
 
 HueBulb.prototype._refresh = function (cb) {
   this.api.lightStatus(this.id, function(err, result) {
     if (result && result.state) {
-      var state = result.state;
-      this.state = state;
-
-      for (var stateGetter of this.device.events) {
-        var newValue = States[stateGetter](state);
-        // don't bother detecting if the state has not changed. denoising will be done
-        // at the platform level. this is also necessary for external calls to
-        // listen for set events, even if nothing has changed.
-        deviceManager.onDeviceEvent(this.light.id, stateGetter, newValue)
-      }
+      this.updateState(result.state);
     }
     if (cb) {
       cb(err);
@@ -156,20 +125,8 @@ HueBulb.prototype.setTemperature = function (kelvin) {
   this.api.setLightState(this.id, lightState.create().ct(mired), this.refresher);
 }
 
-HueBulb.prototype.setRgb = function (r, g, b) {
-  this.api.setLightState(this.id, lightState.create().rgb(r, g, b), this.refresher);
-}
-
 HueBulb.prototype.setHsv = function (h, s, v) {
   this.api.setLightState(this.id, lightState.create().hsb(h, s * 100, v * 100), this.refresher);
-}
-
-HueBulb.prototype.isOn = function () {
-  return States.OnOff(this.state);
-};
-
-HueBulb.prototype.getLevel = function () {
-  return States.Brightness(this.state);;
 }
 
 HueBulb.prototype.getTemperatureMinK = function () {
@@ -178,18 +135,6 @@ HueBulb.prototype.getTemperatureMinK = function () {
 
 HueBulb.prototype.getTemperatureMaxK = function () {
   return Math.round(1 / (this.light.capabilities.control.ct.min) * 1000000);
-}
-
-HueBulb.prototype.getRgb = function () {
-  return States.ColorSettingRgb(this.state);
-}
-
-HueBulb.prototype.getHsv = function () {
-  return States.ColorSettingHsv(this.state);
-}
-
-HueBulb.prototype.getTemperature = function () {
-  return States.ColorSettingTemperature(this.state);
 }
 
 var bridgeId = scriptSettings.getString('bridgeId');
@@ -288,8 +233,7 @@ var displayBridges = function (bridges) {
     .catch((e) => {
       log.a(`Unable to create user on bridge ${bridgeId}: ${e}`);
       log.a('You may need to press the pair button on the bridge.');
-    })
-    .done();
+    });
 };
 
 // --------------------------
