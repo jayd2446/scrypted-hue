@@ -116,7 +116,7 @@ HueBulb.prototype.turnOn = function () {
   this.api.setLightState(this.id, lightState.create().turnOn(), this.refresher);
 };
 
-HueBulb.prototype.setLevel = function (level) {
+HueBulb.prototype.setBrightness = function (level) {
   this.api.setLightState(this.id, lightState.create().brightness(level), this.refresher);
 }
 
