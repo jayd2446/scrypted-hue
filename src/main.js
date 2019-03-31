@@ -73,14 +73,16 @@ function HueBulb(api, light, device) {
   this.api = api;
   this.light = light;
   this.device = device;
-  this.state = deviceManager.getDeviceState(this.id);
 
   this.refresher = (err) => {
     this._refresh();
   }
 
   // wait for this device to be synced, then report the current state.
-  setImmediate(() => this.updateState(light.state));
+  setImmediate(() => {
+    this.state = deviceManager.getDeviceState(this.id);
+    this.updateState(light.state);
+  });
 }
 
 HueBulb.prototype.updateState = function(state) {
