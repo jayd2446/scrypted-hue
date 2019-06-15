@@ -139,14 +139,14 @@ HueBulb.prototype.getTemperatureMaxK = function () {
   return Math.round(1 / (this.light.capabilities.control.ct.min) * 1000000);
 }
 
-var bridgeId = scriptSettings.getString('bridgeId');
-var bridgeAddress = scriptSettings.getString('bridgeAddress');;
+var bridgeId = localStorage.getItem('bridgeId');
+var bridgeAddress = localStorage.getItem('bridgeAddress');;
 if (!bridgeId) {
   log.i('No "bridgeId" was specified in Plugin Settings. Press the pair button on the Hue bridge.');
   log.i('Searching for Hue Bridge...');
 }
 else {
-  var username = scriptSettings.getString(`user-${bridgeId}`);
+  var username = localStorage.getItem(`user-${bridgeId}`);
   if (username) {
     log.i(`Using existing login for bridge ${bridgeId}`);
   }
@@ -172,7 +172,7 @@ var displayBridges = function (bridges) {
 
     bridgeId = bridges[0].id;
     log.i(`Found bridge ${bridgeId}. Setting as default.`);
-    scriptSettings.putString('bridgeId', bridgeId);
+    localStorage.setItem('bridgeId', bridgeId);
   }
 
   var foundAddress;
@@ -194,7 +194,7 @@ var displayBridges = function (bridges) {
   else {
     bridgeAddress = foundAddress;
   }
-  scriptSettings.putString('bridgeAddress', bridgeAddress);
+  localStorage.setItem('bridgeAddress', bridgeAddress);
 
   log.i(`Hue Bridges Found: ${bridgeId}`);
   log.i('Querying devices...');
@@ -229,7 +229,7 @@ var displayBridges = function (bridges) {
     .then((result) => {
       log.i(`Created user on ${bridgeId}: ${result}`);
       username = result;
-      scriptSettings.putString(`user-${bridgeId}`, result);
+      localStorage.setItem(`user-${bridgeId}`, result);
       return listDevices(bridgeAddress, username);
     })
     .catch((e) => {
