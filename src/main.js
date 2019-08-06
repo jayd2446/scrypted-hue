@@ -23,19 +23,16 @@ HueHub.prototype.updateLights = function (result) {
   // 182.5487
 
   for (var light of result.lights) {
-    var interfaces = ['OnOff', 'Brightness'];
+    var interfaces = ['OnOff', 'Brightness', 'Refresh'];
     if (light.type.toLowerCase().indexOf('color') != -1) {
       interfaces.push('ColorSettingHsv');
       interfaces.push('ColorSettingTemperature');
     }
-    var events = interfaces.slice();
-    interfaces.push('Refresh');
 
     var device = {
       nativeId: light.id,
       name: light.name,
       interfaces: interfaces,
-      events: events,
       type: 'Light',
     };
 
@@ -86,8 +83,11 @@ function HueBulb(api, light, device) {
 }
 
 HueBulb.prototype.updateState = function(state) {
-  for (var event of this.device.events) {
-    StateSetters[event](state, this.state);
+  for (var event of this.device.interfaces) {
+    var setter = StateSetters[event];
+    if (setter) {
+      setter(state, this.state);
+    }
   }
 }
 
